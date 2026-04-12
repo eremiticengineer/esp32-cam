@@ -77,7 +77,7 @@ extern "C" void app_main(void)
     }
 
     SDCard sdcard;
-    esp_err_t ret = sdcard.init("/sdcard");
+    esp_err_t ret = sdcard.initMMC("/sdcard");
     if (ESP_OK != ret) {
         LOG_ERR(TAG, ret, "cannot mount sdcard");
     }
