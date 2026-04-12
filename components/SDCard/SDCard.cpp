@@ -4,6 +4,8 @@
 #include <sys/stat.h>
 #include "esp_vfs_fat.h"
 #include "sdmmc_cmd.h"
+#include "driver/sdmmc_host.h"
+
 #include "sdkconfig.h"
 
 static const char *TAG = "SDCARD";
@@ -17,7 +19,94 @@ SDCard::SDCard() {}
 
 SDCard::~SDCard() {}
 
-esp_err_t SDCard::init(const char* mountPoint) {
+esp_err_t SDCard::initMMC(const char* mountPoint) {
+    esp_err_t ret;
+
+    esp_vfs_fat_sdmmc_mount_config_t mount_config = {};
+    mount_config.format_if_mount_failed = true;
+    mount_config.max_files = 5;
+    mount_config.allocation_unit_size = 16 * 1024;
+
+    sdmmc_card_t *card;
+    ESP_LOGI(TAG, "Initializing SD card");
+    ESP_LOGI(TAG, "Using SDMMC peripheral");
+
+    sdmmc_host_t host = SDMMC_HOST_DEFAULT();
+    host.unaligned_multi_block_rw_max_chunk_size = 8;
+#if CONFIG_SDMMC_SPEED_HS
+    host.max_freq_khz = SDMMC_FREQ_HIGHSPEED;
+#elif CONFIG_SDMMC_SPEED_UHS_I_SDR50
+    host.slot = SDMMC_HOST_SLOT_0;
+    host.max_freq_khz = SDMMC_FREQ_SDR50;
+    host.flags &= ~SDMMC_HOST_FLAG_DDR;
+#elif CONFIG_SDMMC_SPEED_UHS_I_DDR50
+    host.slot = SDMMC_HOST_SLOT_0;
+    host.max_freq_khz = SDMMC_FREQ_DDR50;
+#elif CONFIG_SDMMC_SPEED_UHS_I_SDR104
+    host.slot = SDMMC_HOST_SLOT_0;
+    host.max_freq_khz = SDMMC_FREQ_SDR104;
+    host.flags &= ~SDMMC_HOST_FLAG_DDR;
+#endif
+
+#if CONFIG_PIN_CARD_POWER_RESET
+    ESP_ERROR_CHECK(s_reset_card_power());
+#endif
+
+    sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
+#if IS_UHS1
+    slot_config.flags |= SDMMC_SLOT_FLAG_UHS1;
+#endif
+
+    // Set bus width to use:
+#ifdef CONFIG_SDMMC_BUS_WIDTH_4
+    slot_config.width = 4;
+#else
+    slot_config.width = 1;
+#endif
+
+    // On chips where the GPIOs used for SD card can be configured, set them in
+    // the slot_config structure:
+#ifdef CONFIG_SOC_SDMMC_USE_GPIO_MATRIX
+    slot_config.clk = CONFIG_MMC_PIN_CLK;
+    slot_config.cmd = CONFIG_PIN_CMD;
+    slot_config.d0 = CONFIG_PIN_D0;
+#ifdef CONFIG_SDMMC_BUS_WIDTH_4
+    slot_config.d1 = CONFIG_PIN_D1;
+    slot_config.d2 = CONFIG_PIN_D2;
+    slot_config.d3 = CONFIG_PIN_D3;
+#endif  // CONFIG_SDMMC_BUS_WIDTH_4
+#endif  // CONFIG_SOC_SDMMC_USE_GPIO_MATRIX
+
+    // Enable internal pullups on enabled pins. The internal pullups
+    // are insufficient however, please make sure 10k external pullups are
+    // connected on the bus. This is for debug / example purpose only.
+    slot_config.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
+
+    ESP_LOGI(TAG, "Mounting filesystem");
+    ret = esp_vfs_fat_sdmmc_mount(mountPoint, &host, &slot_config, &mount_config, &card);
+
+    if (ret != ESP_OK) {
+        if (ret == ESP_FAIL) {
+            ESP_LOGE(TAG, "Failed to mount filesystem. "
+                     "If you want the card to be formatted, set the FORMAT_IF_MOUNT_FAILED menuconfig option.");
+        }
+        else {
+            ESP_LOGE(TAG, "Failed to initialize the card (%s). "
+                     "Make sure SD card lines have pull-up resistors in place.", esp_err_to_name(ret));
+#ifdef CONFIG_DEBUG_PIN_CONNECTIONS
+            check_sd_card_pins(&config, pin_count);
+#endif
+        }
+        return ret;
+    }
+    ESP_LOGI(TAG, "Filesystem mounted");
+    
+    sdmmc_card_print_info(stdout, card);
+
+    return ESP_OK;
+}
+
+esp_err_t SDCard::initSPI(const char* mountPoint) {
     esp_err_t ret;
 
     esp_vfs_fat_sdmmc_mount_config_t mount_config = {
@@ -74,7 +163,7 @@ esp_err_t SDCard::init(const char* mountPoint) {
     if (ret != ESP_OK) {
         if (ret == ESP_FAIL) {
             ESP_LOGE(TAG, "Failed to mount filesystem. "
-                     "If you want the card to be formatted, set the CONFIG_EXAMPLE_FORMAT_IF_MOUNT_FAILED menuconfig option.");
+                     "If you want the card to be formatted, set the CONFIG_FORMAT_IF_MOUNT_FAILED menuconfig option.");
         }
         else
         {
