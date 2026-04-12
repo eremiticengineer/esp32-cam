@@ -12,7 +12,12 @@
 
 #include "esp_camera.h"
 
+#include "SDCard.h"
+
 static const char *TAG = "ESP32CAM";
+
+#define LOG_ERR(tag, err, msg) \
+    ESP_LOGE(tag, "%s: %s (0x%x)", msg, esp_err_to_name(err), (unsigned int)(err))
 
 // Pull in definitions from camera_pinout.h
 #define BOARD_ESP32CAM_AITHINKER
@@ -69,6 +74,31 @@ extern "C" void app_main(void)
 {
     if(ESP_OK != init_camera()) {
         return;
+    }
+
+    SDCard sdcard;
+    esp_err_t ret = sdcard.init("/sdcard");
+    if (ESP_OK != ret) {
+        LOG_ERR(TAG, ret, "cannot mount sdcard");
+    }
+    else {
+        char data[64];
+        snprintf(data, 64, "this is a test file on the sdcard");
+        ret = sdcard.writeFile("/sdcard/test.txt", data);
+        if (ESP_OK != ret) {
+            LOG_ERR(TAG, ret, "cannot write file to  sdcard");
+        }
+        else {
+            std::string fileContent;
+            ret = sdcard.readFile("/sdcard/test.txt", fileContent);
+            if (ESP_OK != ret) {
+                LOG_ERR(TAG, ret, "cannot read file from  sdcard");
+            }
+            else {
+                ESP_LOGI(TAG, "file content:");
+                ESP_LOGI(TAG, "%s", fileContent);
+            }
+        }
     }
 
     while (1)
