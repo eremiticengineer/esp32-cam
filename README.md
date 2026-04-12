@@ -5,6 +5,7 @@ A simple esp-idf v6 project to work with an ESP32-CAM module. The project uses t
 ```
 cd main
 idf.py add-dependency "espressif/esp32-camera"
+idf.py add-dependency sd-card
 ```
 this creates idf_component.yml in main.
 
