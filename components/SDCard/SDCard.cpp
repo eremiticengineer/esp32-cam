@@ -1,3 +1,12 @@
+// Reading from the sdcard sets the flash off as they both use GPIO4
+// https://forum.arduino.cc/t/esp32-cam-led-does-not-shut-off-between-photos/1257907/9
+// If you put the sd card in to 1-bit mode this will stop it using the same gpio pin as the flash although sd card access will be slower
+// Using the SD Card in 1-Bit Mode on the ESP32-CAM from AI-Thinker
+// https://dr-mntn.net/2021/02/using-the-sd-card-in-1-bit-mode-on-the-esp32-cam-from-ai-thinker
+
+// idf.py menuconfig
+// Component config -> SDCard configuration -> SDMMC bus width ... -> 1 line (D0)
+
 #include "SDCard.h"
 
 #include <sys/unistd.h>
@@ -19,7 +28,7 @@ SDCard::SDCard() {}
 
 SDCard::~SDCard() {}
 
-esp_err_t SDCard::initMMC(const char* mountPoint) {
+esp_err_t SDCard::init_mmc(const char* mountPoint) {
     esp_err_t ret;
 
     esp_vfs_fat_sdmmc_mount_config_t mount_config = {};
@@ -106,7 +115,7 @@ esp_err_t SDCard::initMMC(const char* mountPoint) {
     return ESP_OK;
 }
 
-esp_err_t SDCard::initSPI(const char* mountPoint) {
+esp_err_t SDCard::init_spi(const char* mountPoint) {
     esp_err_t ret;
 
     esp_vfs_fat_sdmmc_mount_config_t mount_config = {
@@ -181,7 +190,7 @@ esp_err_t SDCard::initSPI(const char* mountPoint) {
     return ESP_OK;
 }
 
-esp_err_t SDCard::writeFile(const char *path, char *data)
+esp_err_t SDCard::write_file(const char *path, char *data)
 {
     ESP_LOGI(TAG, "Opening file %s", path);
     FILE *f = fopen(path, "w");
@@ -196,7 +205,21 @@ esp_err_t SDCard::writeFile(const char *path, char *data)
     return ESP_OK;
 }
 
-esp_err_t SDCard::readFile(const char *path, std::string& fileContent)
+esp_err_t SDCard::write_binary_file(const char *path, const uint8_t *data, size_t len)
+{
+    ESP_LOGI(TAG, "Opening binary file %s", path);
+    FILE *f = fopen(path, "wb");
+    if (!f) {
+        return ESP_FAIL;
+    }
+
+    fwrite(data, 1, len, f);
+
+    fclose(f);
+    return ESP_OK;
+}
+
+esp_err_t SDCard::read_file(const char *path, std::string& fileContent)
 {
     ESP_LOGI(TAG, "Reading file %s", path);
     FILE *f = fopen(path, "r");
