@@ -16,5 +16,10 @@ Component config -> ESP PSRAM -> Enable
 Component config -> ESP PSRAM -> SPI RAM config -> Set RAM clock speed -> 80MHz (stuck on 40MHz)
 ```
 
+# Switch MMC to 1 bit mode to prevent flash going off every time sdcard used
+```
+Component config -> SDCard configuration -> SDMMC bus width ... -> 1 line (D0)
+```
+
 # Resources
 [esp32-camera](https://github.com/espressif/esp32-camera)
