@@ -111,7 +111,7 @@ extern "C" void app_main(void)
             }
             else {
                 ESP_LOGI(TAG, "file content:");
-                ESP_LOGI(TAG, "%s", fileContent);
+                ESP_LOGI(TAG, "%s", fileContent.c_str());
             }
         }
     }
