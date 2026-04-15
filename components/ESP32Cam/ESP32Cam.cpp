@@ -5,9 +5,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-QueueHandle_t _cmdQueue;
-QueueHandle_t _eventQueue;
-
 // Pin definitions for CAMERA_MODEL_AI_THINKER
 #define PWDN_GPIO_NUM     32
 #define RESET_GPIO_NUM    -1
