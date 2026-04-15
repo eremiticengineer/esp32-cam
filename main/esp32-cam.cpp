@@ -15,7 +15,7 @@
 #include "SDCard.h"
 #include "ESP32Cam.h"
 #include "UartAPI.h"
-#include "task_context.h"
+#include "CommandDispatcher.h"
 
 static const char *TAG = "ESP32CAM";
 
@@ -101,11 +101,21 @@ static void uart_task(void* param) {
 } // static void uart_task(void* param)
 */
 
-static SystemBus bus;
 extern "C" void app_main(void)
 {
+    SystemBus bus;
+
+    // Command + event bus
     bus.commandQueue = xQueueCreate(10, sizeof(Command));
     bus.eventQueue = xQueueCreate(10, sizeof(Event));
+
+    // Subsystem queues
+    bus.cameraQueue = xQueueCreate(5, sizeof(Command));
+    bus.sdQueue     = xQueueCreate(5, sizeof(Command));
+    
+    // Start the message dispatcher
+    CommandDispatcher commandDispatcher;
+    commandDispatcher.start(&bus);
 
     // Set up the camera task to listen for commands to capture images
     ESP32Cam camera;
@@ -114,12 +124,11 @@ extern "C" void app_main(void)
 
     SDCard sdcard;
     esp_err_t ret = sdcard.init_mmc("/sdcard");
+    sdcard.start(&bus);
 
     // Set up the UART API which will use messages to coordinate activity
     UartAPI uartAPI;
     uartAPI.start(&bus);
-
-//    xTaskCreate(uart_task, "uart_task", 4096, &ctx, 5, &uartTaskHandle);
 
 /*
     SDCard sdcard;
