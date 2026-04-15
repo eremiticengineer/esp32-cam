@@ -12,7 +12,9 @@ static const char *TAG = "ESP32CAM";
 #define LOG_ERR(tag, err, msg) \
     ESP_LOGE(tag, "%s: %s (0x%x)", msg, esp_err_to_name(err), (unsigned int)(err))
 
-UartAPI::UartAPI() {}
+UartAPI::UartAPI() {
+  _photo_id = 1;
+}
 
 void UartAPI::start(SystemBus* bus) {
     _bus = bus;
@@ -62,41 +64,7 @@ void UartAPI::run() {
           else if (strcmp(rx_buffer, "pic:capture") == 0) {
             Command cmd;
             cmd.type = CommandType::TakePicture;
-            cmd.payload = nullptr;
             xQueueSend(_bus->commandQueue, &cmd, portMAX_DELAY);
-
-            // Listen for events
-            Event event;
-            if (xQueueReceive(_bus->eventQueue, &event, portMAX_DELAY))
-            {
-                if (event.type == EventType::ImageCaptured)
-                {
-                  const char *header = "IMG:";
-                  uart_write_bytes(uart_num, header, 4);
-                  uart_write_bytes(uart_num,
-                    (const char *)&event.image.length,
-                    sizeof(event.image.length));
-                  uart_write_bytes(uart_num,
-                    (const char *)event.image.buffer,
-                    event.image.length);
-                  free(event.image.buffer);
-                }
-            }
-
-
-/*
-            snprintf(filename, sizeof(filename), "%s/image_%d.jpg", sdcard->get_mount_point().c_str(), photoId++);
-            err = sdcard->write_binary_file(filename, image.data, image.len);
-            if (ESP_OK == err) {
-              ESP_LOGI(TAG, "wrote image to sdcard:");
-              ESP_LOGI(TAG, "%s", filename);
-            }
-            else {
-              LOG_ERR(TAG, err, "cannot write image to sdcard");
-            }
-            free(image.data);
-*/
-
           }
         } // else if (strcmp(rx_buffer, "pic:capture") == 0)
         else {
@@ -109,5 +77,36 @@ void UartAPI::run() {
         }
       } // if (c == '#')
     } // while (uart_read_bytes(uart_num, &c, 1, portMAX_DELAY))
+
+    // Listen for events on the event queue
+    Event event;
+    if (xQueueReceive(_bus->eventQueue, &event, portMAX_DELAY))
+    {
+        if (event.type == EventType::ImageCaptured)
+        {
+          // Respond to the originating API call...
+          const char *header = "IMG:";
+          uart_write_bytes(uart_num, header, 4);
+          uart_write_bytes(uart_num,
+            (const char *)&event.image.length,
+            sizeof(event.image.length));
+          uart_write_bytes(uart_num,
+            (const char *)event.image.buffer,
+            event.image.length);
+          
+          // ...save the image to sd card. The receiver will free the buffer
+          Command cmd;
+          cmd.type = CommandType::SaveImageToSD;
+          
+          snprintf(cmd.sdcard_payload.filename, sizeof(cmd.sdcard_payload.filename),
+              "image_%d.jpg",
+              _photo_id++);
+          cmd.sdcard_payload.type = SDCardEventType::BinaryData;
+          cmd.sdcard_payload.binary_buffer = event.image.buffer;
+          cmd.sdcard_payload.length = event.image.length;
+
+          xQueueSend(_bus->commandQueue, &cmd, portMAX_DELAY);
+        }
+    } // if (xQueueReceive(_bus->eventQueue, &event, portMAX_DELAY))
   } // while (1)
 }  // static void uart_task(void* param)
