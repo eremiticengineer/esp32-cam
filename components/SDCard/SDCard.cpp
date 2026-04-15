@@ -248,3 +248,44 @@ esp_err_t SDCard::read_file(const char *path, std::string& fileContent)
 const std::string& SDCard::get_mount_point() const {
   return _mountPoint;
 }
+
+void SDCard::start(SystemBus* bus)
+{
+    _bus = bus;
+
+    xTaskCreate(
+        task_wrapper,
+        "sdcard_task",
+        4096,
+        this,
+        5,
+        &_taskHandle
+    );
+}
+
+void SDCard::task_wrapper(void* arg)
+{
+    SDCard* self = static_cast<SDCard*>(arg);
+    self->run();
+}
+
+void SDCard::run()
+{
+    Command cmd;
+
+    while (true)
+    {
+        // Does a task somewhere want a file read or written?
+        if (xQueueReceive(_bus->commandQueue, &cmd, portMAX_DELAY))
+        {
+            if (cmd.type == CommandType::TakePicture)
+            {
+                Event event;
+
+                // Send the image captured event to the event queue
+                xQueueSend(_bus->eventQueue, &event, portMAX_DELAY);
+            }
+        }
+    }
+}
+
