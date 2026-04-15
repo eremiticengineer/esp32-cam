@@ -31,6 +31,8 @@ SDCard::~SDCard() {}
 esp_err_t SDCard::init_mmc(const char* mountPoint) {
     esp_err_t ret;
 
+    _mountPoint = mountPoint;
+
     esp_vfs_fat_sdmmc_mount_config_t mount_config = {};
     mount_config.format_if_mount_failed = true;
     mount_config.max_files = 5;
@@ -241,4 +243,8 @@ esp_err_t SDCard::read_file(const char *path, std::string& fileContent)
     fileContent = line;
 
     return ESP_OK;
+}
+
+const std::string& SDCard::get_mount_point() const {
+  return _mountPoint;
 }
