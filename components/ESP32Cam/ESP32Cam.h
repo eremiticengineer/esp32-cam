@@ -16,6 +16,8 @@ public:
 private:
     SystemBus* _bus = nullptr;
     TaskHandle_t _taskHandle = nullptr;
+    QueueHandle_t _cmdQueue;
+    QueueHandle_t _eventQueue;
 
     static void task_wrapper(void* arg);
     void run();
