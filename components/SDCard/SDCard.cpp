@@ -276,15 +276,22 @@ void SDCard::run()
     while (true)
     {
         // Does a task somewhere want a file read or written?
-        if (xQueueReceive(_bus->commandQueue, &cmd, portMAX_DELAY))
+        if (xQueueReceive(_bus->sdQueue, &cmd, portMAX_DELAY))
         {
-            if (cmd.type == CommandType::TakePicture)
+            if (cmd.type == CommandType::SaveImageToSD)
             {
-                Event event;
+                std::string filename = get_mount_point() +
+                    "/" + cmd.sdcard_payload.filename;
 
-                // Send the image captured event to the event queue
-                xQueueSend(_bus->eventQueue, &event, portMAX_DELAY);
-            }
+                if (cmd.sdcard_payload.type == SDCardEventType::BinaryData) {
+                    write_binary_file(filename.c_str(),
+                        cmd.sdcard_payload.binary_buffer,
+                        cmd.sdcard_payload.length);
+
+                    // Free the image data that's on the heap
+                    free(cmd.sdcard_payload.binary_buffer);
+                }
+            }            
         }
     }
 }
