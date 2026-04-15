@@ -115,10 +115,12 @@ void ESP32Cam::run()
     while (true)
     {
         // Does a task somewhere want an image captured?
-        if (xQueueReceive(_bus->commandQueue, &cmd, portMAX_DELAY))
+        if (xQueueReceive(_bus->cameraQueue, &cmd, portMAX_DELAY))
         {
             if (cmd.type == CommandType::TakePicture)
             {
+                // Reusable img, the original has been released back to the camera
+                // Caller is responsible for freeing it.
                 ImageData img = capture_image();
 
                 Event event;
