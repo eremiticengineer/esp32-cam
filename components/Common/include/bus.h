@@ -7,4 +7,7 @@
 struct SystemBus {
     QueueHandle_t commandQueue;
     QueueHandle_t eventQueue;
+
+    QueueHandle_t cameraQueue;
+    QueueHandle_t sdQueue;
 };
