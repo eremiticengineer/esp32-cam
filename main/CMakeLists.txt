@@ -8,4 +8,5 @@ idf_component_register(SRCS "esp32-cam.cpp"
                                      ESP32Cam
                                      UartAPI
                                      Common
+                                     Dispatcher
 )
