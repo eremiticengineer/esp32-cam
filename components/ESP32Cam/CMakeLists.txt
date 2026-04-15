@@ -5,4 +5,5 @@ idf_component_register(
                   esp_psram
                   esp_driver_i2c
                   esp_driver_uart
+                  Common
 )
