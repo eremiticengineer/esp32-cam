@@ -117,6 +117,7 @@ extern "C" void app_main(void)
           ESP_LOGI(TAG, "Picture taken! Its size was: %zu bytes", image.len);
           snprintf(filename, sizeof(filename), "/sdcard/image_%d.jpg", photoId++);
           ret = sdcard.write_binary_file(filename, image.data, image.len);
+          free(image.data);
           if (ESP_OK == ret) {
             ESP_LOGI(TAG, "wrote image to sdcard:");
             ESP_LOGI(TAG, "%s", filename);
