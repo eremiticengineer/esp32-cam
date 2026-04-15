@@ -1,5 +1,12 @@
 #include "ESP32Cam.h"
+
 #include "esp_camera.h"
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+QueueHandle_t _cmdQueue;
+QueueHandle_t _eventQueue;
 
 // Pin definitions for CAMERA_MODEL_AI_THINKER
 #define PWDN_GPIO_NUM     32
@@ -63,22 +70,67 @@ esp_err_t ESP32Cam::init_camera() {
   return ESP_OK;
 }
 
-ESP32Cam::ImageData ESP32Cam::capture_image() {
+ImageData ESP32Cam::capture_image() {
   camera_fb_t* fb = esp_camera_fb_get();
   if (fb != NULL) {
     ESP_LOGI(TAG, "Image captured! Its size was: %zu bytes", fb->len);
 
-    uint8_t* out = (uint8_t*)malloc(fb->len);
-    if (!out) {
-      esp_camera_fb_return(fb);
-      return {nullptr, 0};
-    }
-    memcpy(out, fb->buf, fb->len);
-    esp_camera_fb_return(fb);
-    return {out, fb->len};
+    ImageData img;
+    img.length = fb->len;
+
+    // COPY OUT of camera memory to the heap
+    img.buffer = (uint8_t*)malloc(fb->len);
+    memcpy(img.buffer, fb->buf, fb->len);
+
+    esp_camera_fb_return(fb);   // SAFE now
+
+    return img;
   }
   else {
-    ESP_LOGE(TAG, "Cannot capture image");
     return {nullptr, 0};
   }
+}
+
+void ESP32Cam::start(SystemBus* bus)
+{
+    _bus = bus;
+
+    xTaskCreate(
+        task_wrapper,
+        "cam_task",
+        4096,
+        this,
+        5,
+        &_taskHandle
+    );
+}
+
+void ESP32Cam::task_wrapper(void* arg)
+{
+    ESP32Cam* self = static_cast<ESP32Cam*>(arg);
+    self->run();
+}
+
+void ESP32Cam::run()
+{
+    Command cmd;
+
+    while (true)
+    {
+        // Does a task somewhere want an image captured?
+        if (xQueueReceive(_bus->commandQueue, &cmd, portMAX_DELAY))
+        {
+            if (cmd.type == CommandType::TakePicture)
+            {
+                ImageData img = capture_image();
+
+                Event event;
+                event.type = EventType::ImageCaptured;
+                event.image = img;
+
+                // Send the image captured event to the event queue
+                xQueueSend(_bus->eventQueue, &event, portMAX_DELAY);
+            }
+        }
+    }
 }
