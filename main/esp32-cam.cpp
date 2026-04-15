@@ -63,19 +63,32 @@ static void uart_task(void* param) {
         if (c == '#') {
           rx_buffer[rx_index] = '\0';   // terminate string
           rx_index = 0;
-          //ESP_LOGI("UART", "***********************************************: %s", rx_buffer);
-          ESP32Cam::ImageData image = camera->capture_image();
-          ESP_LOGI(TAG, "Picture taken! Its size was: %zu bytes", image.len);
-          snprintf(filename, sizeof(filename), "%s/image_%d.jpg", sdcard->get_mount_point().c_str(), photoId++);
-          err = sdcard->write_binary_file(filename, image.data, image.len);
-          if (ESP_OK == err) {
-            ESP_LOGI(TAG, "wrote image to sdcard:");
-            ESP_LOGI(TAG, "%s", filename);
+
+          if (strcmp(rx_buffer, "ok") == 0) {
+            uart_write_bytes(uart_num, "ok", 2);
           }
-          else {
-            LOG_ERR(TAG, err, "cannot write image to sdcard");
+          else if (strcmp(rx_buffer, "pic:capture") == 0) {
+            //ESP_LOGI("UART", "***********************************************: %s", rx_buffer);
+            ESP32Cam::ImageData image = camera->capture_image();
+
+            const char *header = "IMG:";
+            uart_write_bytes(uart_num, header, 4);
+            uart_write_bytes(uart_num, (const char *)&image.len, sizeof(image.len));
+            uart_write_bytes(uart_num, (const char *)image.data, image.len);
+
+            //ESP_LOGI(TAG, "Picture taken! Its size was: %zu bytes", image.len);
+            snprintf(filename, sizeof(filename), "%s/image_%d.jpg", sdcard->get_mount_point().c_str(), photoId++);
+            err = sdcard->write_binary_file(filename, image.data, image.len);
+            if (ESP_OK == err) {
+              ESP_LOGI(TAG, "wrote image to sdcard:");
+              ESP_LOGI(TAG, "%s", filename);
+            }
+            else {
+              LOG_ERR(TAG, err, "cannot write image to sdcard");
+            }
+            free(image.data);
           }
-          free(image.data);
+
         }
         else {
           if (rx_index < sizeof(rx_buffer) - 1) {
@@ -85,17 +98,19 @@ static void uart_task(void* param) {
           // overflow safety reset
           rx_index = 0;
         }
-      }
-    } // while (uart_read_bytes(uart_num, &c, 1, portMAX_DELAY)) {
-  } // while (1) {
+      } // if (c == '#')
+    } // while (uart_read_bytes(uart_num, &c, 1, portMAX_DELAY))
+  } // while (1)
 } // static void uart_task(void* param)
 
 extern "C" void app_main(void)
 {
+/*
     for (int i = 0; i < 5; i++) {
       ESP_LOGI(TAG, "Time elapsed: %d s", i + 1);
       vTaskDelay(pdMS_TO_TICKS(1000));
     }
+*/
 
     ESP32Cam camera;
     camera.init_camera();
@@ -136,11 +151,11 @@ extern "C" void app_main(void)
     }
 */
 
+/*
     int photoId = 1;
     char filename[32];
     while (1)
     {
-/*
         std::string fileContent;
         esp_err_t ret = sdcard.read_file("/sdcard/test.txt", fileContent);
         if (ESP_OK != ret) {
@@ -170,6 +185,8 @@ extern "C" void app_main(void)
         }
 */
 
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
-    }
+        while (1) {
+          vTaskDelay(5000 / portTICK_PERIOD_MS);
+        }
+//    }
 }
