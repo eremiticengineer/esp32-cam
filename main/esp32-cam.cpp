@@ -11,19 +11,19 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#include "bus.h"
 #include "SDCard.h"
 #include "ESP32Cam.h"
+#include "UartAPI.h"
+#include "task_context.h"
 
 static const char *TAG = "ESP32CAM";
 
 #define LOG_ERR(tag, err, msg) \
     ESP_LOGE(tag, "%s: %s (0x%x)", msg, esp_err_to_name(err), (unsigned int)(err))
 
-struct TaskContext {
-  ESP32Cam* camera;
-  SDCard* sdcard;
-};
 
+/*
 static TaskHandle_t uartTaskHandle;
 static void uart_task(void* param) {
     TaskContext* ctx = static_cast<TaskContext*>(param);
@@ -99,27 +99,27 @@ static void uart_task(void* param) {
     } // while (uart_read_bytes(uart_num, &c, 1, portMAX_DELAY))
   } // while (1)
 } // static void uart_task(void* param)
-
-extern "C" void app_main(void)
-{
-/*
-    for (int i = 0; i < 5; i++) {
-      ESP_LOGI(TAG, "Time elapsed: %d s", i + 1);
-      vTaskDelay(pdMS_TO_TICKS(1000));
-    }
 */
 
+static SystemBus bus;
+extern "C" void app_main(void)
+{
+    bus.commandQueue = xQueueCreate(10, sizeof(Command));
+    bus.eventQueue = xQueueCreate(10, sizeof(Event));
+
+    // Set up the camera task to listen for commands to capture images
     ESP32Cam camera;
     camera.init_camera();
+    camera.start(&bus);
 
     SDCard sdcard;
     esp_err_t ret = sdcard.init_mmc("/sdcard");
 
-    TaskContext ctx;
-    ctx.camera = &camera;
-    ctx.sdcard = &sdcard;
+    // Set up the UART API which will use messages to coordinate activity
+    UartAPI uartAPI;
+    uartAPI.start(&bus);
 
-    xTaskCreate(uart_task, "uart_task", 4096, &ctx, 5, &uartTaskHandle);
+//    xTaskCreate(uart_task, "uart_task", 4096, &ctx, 5, &uartTaskHandle);
 
 /*
     SDCard sdcard;
