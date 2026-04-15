@@ -75,8 +75,6 @@ static void uart_task(void* param) {
             uart_write_bytes(uart_num, header, 4);
             uart_write_bytes(uart_num, (const char *)&image.len, sizeof(image.len));
             uart_write_bytes(uart_num, (const char *)image.data, image.len);
-
-            //ESP_LOGI(TAG, "Picture taken! Its size was: %zu bytes", image.len);
             snprintf(filename, sizeof(filename), "%s/image_%d.jpg", sdcard->get_mount_point().c_str(), photoId++);
             err = sdcard->write_binary_file(filename, image.data, image.len);
             if (ESP_OK == err) {
@@ -88,8 +86,7 @@ static void uart_task(void* param) {
             }
             free(image.data);
           }
-
-        }
+        } // else if (strcmp(rx_buffer, "pic:capture") == 0)
         else {
           if (rx_index < sizeof(rx_buffer) - 1) {
               rx_buffer[rx_index++] = c;
