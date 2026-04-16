@@ -33,39 +33,11 @@ esp_err_t UartAPI::init() {
     if (ESP_OK == err) {
       status = ESP_OK;
       ESP_LOGI(TAG, "UART ready");
-      // err = uart_param_config(UART_NUM_0, &uart_config);
-      // if (ESP_OK == err) {
-      //   status = ESP_OK;
-      //   ESP_LOGI(TAG, "UART ready");
-      // }
-      // else {
-      //   status = err;
-      //   LOG_ERR(TAG, err, "cannot config UART");
-      // }
     }
     else {
       status = err;
       LOG_ERR(TAG, err, "cannot install UART driver");
     }
-
-    /*
-    esp_err_t err = uart_param_config(UART_NUM_0, &uart_config);
-    if (ESP_OK == err) {
-      uart_driver_install(UART_NUM_0, 2048, 0, 0, nullptr, 0);
-      if (ESP_OK == err) {
-        status = ESP_OK;
-        ESP_LOGI(TAG, "UART ready");
-      }
-      else {
-        status = err;
-        LOG_ERR(TAG, err, "cannot install UART driver");
-      }
-    }
-    else {
-      status = err;
-      LOG_ERR(TAG, err, "cannot config UART");
-    }
-  */
 
     return status;
 }
