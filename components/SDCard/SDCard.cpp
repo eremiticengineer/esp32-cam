@@ -194,7 +194,6 @@ esp_err_t SDCard::init_spi(const char* mountPoint) {
 
 esp_err_t SDCard::write_file(const char *path, char *data)
 {
-    ESP_LOGI(TAG, "Opening file %s", path);
     FILE *f = fopen(path, "w");
     if (f == NULL) {
         ESP_LOGE(TAG, "Failed to open file for writing");
@@ -209,7 +208,6 @@ esp_err_t SDCard::write_file(const char *path, char *data)
 
 esp_err_t SDCard::write_binary_file(const char *path, const uint8_t *data, size_t len)
 {
-    ESP_LOGI(TAG, "Opening binary file %s", path);
     FILE *f = fopen(path, "wb");
     if (!f) {
         return ESP_FAIL;
@@ -223,7 +221,6 @@ esp_err_t SDCard::write_binary_file(const char *path, const uint8_t *data, size_
 
 esp_err_t SDCard::read_file(const char *path, std::string& fileContent)
 {
-    ESP_LOGI(TAG, "Reading file %s", path);
     FILE *f = fopen(path, "r");
     if (f == NULL) {
         ESP_LOGE(TAG, "Failed to open file for reading");
@@ -238,7 +235,6 @@ esp_err_t SDCard::read_file(const char *path, std::string& fileContent)
     if (pos) {
         *pos = '\0';
     }
-    ESP_LOGI(TAG, "Read from file: '%s'", line);
 
     fileContent = line;
 
@@ -291,7 +287,7 @@ void SDCard::run()
                     // Free the image data that's on the heap
                     free(cmd.sdcard_payload.binary_buffer);
                 }
-            }            
+            }
         }
     }
 }
