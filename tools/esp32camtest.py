@@ -6,7 +6,7 @@ import time
 PORT = "/dev/ttyUSB0"
 BAUD = 115200
 OUTPUT_FILE = "/tmp/image.jpg"
-COMMAND = b"pic:capture#"
+COMMAND = b"i:c#"
 
 # Connect each time to ignore boot noise
 def try_connect():

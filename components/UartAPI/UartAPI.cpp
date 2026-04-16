@@ -102,7 +102,7 @@ void UartAPI::run() {
           if (strcmp(rx_buffer, "ok") == 0) {
             uart_write_bytes(UART_NUM_0, "ok", 2);
           }
-          else if (strcmp(rx_buffer, "pic:capture") == 0) {
+          else if (strcmp(rx_buffer, "i:c") == 0) {
             Command cmd;
             cmd.type = CommandType::TakePicture;
             xQueueSend(_bus->commandQueue, &cmd, portMAX_DELAY);
