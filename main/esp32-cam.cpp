@@ -5,8 +5,6 @@
 #include <nvs_flash.h>
 #include <sys/param.h>
 #include <string.h>
-#include "driver/i2c_master.h"
-#include "driver/uart.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -104,14 +102,22 @@ static void uart_task(void* param) {
 extern "C" void app_main(void)
 {
     SystemBus bus;
+    bus.init();
+
+    vTaskDelay(5000 / portTICK_PERIOD_MS);
 
     // Command + event bus
-    bus.commandQueue = xQueueCreate(10, sizeof(Command));
-    bus.eventQueue = xQueueCreate(10, sizeof(Event));
+    // bus.commandQueue = xQueueCreate(10, sizeof(Command));
+    // bus.eventQueue = xQueueCreate(10, sizeof(Event));
 
     // Subsystem queues
-    bus.cameraQueue = xQueueCreate(5, sizeof(Command));
-    bus.sdQueue     = xQueueCreate(5, sizeof(Command));
+    // bus.cameraQueue = xQueueCreate(5, sizeof(Command));
+    // bus.sdQueue     = xQueueCreate(5, sizeof(Command));
+
+    // Set up the UART API which will use messages to coordinate activity
+    UartAPI uartAPI;
+    uartAPI.init();
+    uartAPI.start(&bus);
     
     // Start the message dispatcher
     CommandDispatcher commandDispatcher;
@@ -125,10 +131,6 @@ extern "C" void app_main(void)
     SDCard sdcard;
     esp_err_t ret = sdcard.init_mmc("/sdcard");
     sdcard.start(&bus);
-
-    // Set up the UART API which will use messages to coordinate activity
-    UartAPI uartAPI;
-    uartAPI.start(&bus);
 
 /*
     SDCard sdcard;
