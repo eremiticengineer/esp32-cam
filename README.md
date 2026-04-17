@@ -2,7 +2,7 @@
 A simple esp-idf v6 project to work with an ESP32-CAM module. The project uses the ESPRESSIF esp32-camera component.
 
 # Message bus and queues
-The internal communication among the various components is handled by the Dispatcher component. The serial API sends messages on the command queue with the dispatcher routing the messages to the correct component to handle the request, e.g. the serial API tells the camera component to capture an image. The camera component then puts the image length and data on the event queue and the serial API listener picks up the event. It then sends a message on the command queue to tell the sdcard component to save the image to sdcard. Again, the dispatcher handles the routing to the sdcard, based on message type.
+The internal communication among the various components is handled by the Dispatcher component. The serial API sends messages on the command queue with the dispatcher routing the messages to the correct component to handle the request, e.g. the serial API tells the camera component to capture an image. The camera component then puts the image length and data on the event queue and the serial API listener picks up the event. It then sends a message on the command queue to tell the sdcard component to save the image to sdcard and another message to tell it to save text in a file on the sd card. Again, the dispatcher handles the routing to the sdcard, based on message type.
 
 # Serial API
 The app has a serial API that allows another mcu to power up the ESP32-CAM module and receive an image over UART serial connection. Commands are terminated with the hash char '#'. If an mcu wants to use the API it should ask the module if it's ready to accept API requests:
