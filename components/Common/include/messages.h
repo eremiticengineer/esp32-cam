@@ -23,6 +23,7 @@ struct SaveToSDPayload {
 enum class CommandType {
     TakePicture,
     SaveImageToSD,
+    SaveTextToSD,
     SendUART
 };
 
