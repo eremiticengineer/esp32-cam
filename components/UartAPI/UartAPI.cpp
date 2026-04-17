@@ -111,14 +111,24 @@ void UartAPI::event_listener() {
         // ...save the image to sd card. The receiver will free the buffer
         Command cmd;
         cmd.type = CommandType::SaveImageToSD;
-        
         snprintf(cmd.sdcard_payload.filename, sizeof(cmd.sdcard_payload.filename),
             "image_%d.jpg",
             _photo_id++);
         cmd.sdcard_payload.type = SDCardEventType::BinaryData;
         cmd.sdcard_payload.binary_buffer = event.image.buffer;
         cmd.sdcard_payload.length = event.image.length;
+        xQueueSend(_bus->commandQueue, &cmd, portMAX_DELAY);
 
+        // Send a text message to the sd card to have it stored on the sd card.
+        // The receiver will free the buffer.
+        cmd.type = CommandType::SaveTextToSD;
+        snprintf(cmd.sdcard_payload.filename, sizeof(cmd.sdcard_payload.filename),
+            "testfile.txt");
+        cmd.sdcard_payload.type = SDCardEventType::TextData;
+        char* payload = (char*)malloc(32);
+        snprintf(payload, 32, "this is text");
+        cmd.sdcard_payload.text_buffer = payload;
+        cmd.sdcard_payload.length = strlen(payload);
         xQueueSend(_bus->commandQueue, &cmd, portMAX_DELAY);
       } // if (event.type == EventType::ImageCaptured)
     } // if (xQueueReceive(_bus->eventQueue, &event, portMAX_DELAY)) {
