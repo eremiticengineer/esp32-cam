@@ -276,17 +276,26 @@ void SDCard::run()
         {
             if (cmd.type == CommandType::SaveImageToSD)
             {
-                std::string filename = get_mount_point() +
+                std::string filenameWithPath = get_mount_point() +
                     "/" + cmd.sdcard_payload.filename;
 
                 if (cmd.sdcard_payload.type == SDCardEventType::BinaryData) {
-                    write_binary_file(filename.c_str(),
+                    write_binary_file(filenameWithPath.c_str(),
                         cmd.sdcard_payload.binary_buffer,
                         cmd.sdcard_payload.length);
 
                     // Free the image data that's on the heap
                     free(cmd.sdcard_payload.binary_buffer);
                 }
+            }
+            else if (cmd.type == CommandType::SaveTextToSD)
+            {
+                std::string filenameWithPath = get_mount_point() +
+                    "/" + cmd.sdcard_payload.filename;
+                write_file(filenameWithPath.c_str(), cmd.sdcard_payload.text_buffer);
+
+                // Free the text data that's on the heap
+                free(cmd.sdcard_payload.text_buffer);
             }
         }
     }
