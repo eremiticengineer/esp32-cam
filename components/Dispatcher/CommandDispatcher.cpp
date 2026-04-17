@@ -25,6 +25,7 @@ void CommandDispatcher::run()
                 break;
 
             case CommandType::SaveImageToSD:
+            case CommandType::SaveTextToSD:
                 xQueueSend(_bus->sdQueue, &cmd, portMAX_DELAY);
                 break;
 
