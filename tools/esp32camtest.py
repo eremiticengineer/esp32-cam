@@ -25,9 +25,13 @@ def wait_for_esp():
 
             for _ in range(10):  # small burst of attempts
                 ser.write(b"ok#")
-                resp = ser.read(2)
 
-                if resp == b"ok":
+                buf = b""
+
+                while len(buf) < 2:
+                    buf += ser.read(64)
+
+                if b"ok" in buf:
                     print("ESP32 ready")
                     return ser
 
