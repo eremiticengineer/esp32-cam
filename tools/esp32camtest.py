@@ -1,102 +1,115 @@
 import serial
-import struct
 import time
 
-# ESP32-CAM is on FTDI
 PORT = "/dev/ttyUSB0"
 BAUD = 115200
-OUTPUT_FILE = "/tmp/image.jpg"
-COMMAND = b"i:c#"
 
-# Connect each time to ignore boot noise
-def try_connect():
-    ser = serial.Serial(PORT, BAUD, timeout=0.3)
-    ser.reset_input_buffer()
-    ser.reset_output_buffer()
-    return ser
+ser = serial.Serial(PORT, BAUD, timeout=0.1)
 
-# Send the probe message. If no response, disconnect and try again and again...
-def wait_for_esp():
+buffer = bytearray()
+
+
+# -----------------------------
+# LOW LEVEL READ
+# -----------------------------
+def read_uart():
+    data = ser.read(512)
+    if data:
+        buffer.extend(data)
+
+
+# -----------------------------
+# FIND IMAGE FRAME
+# -----------------------------
+def extract_image():
+    """
+    Robust resync parser:
+    - ignores garbage
+    - finds !LEN!<data>
+    - recovers from desync safely
+    """
+
+    global buffer
+
     while True:
-        try:
-            ser = try_connect()
+        # 1. find start of frame
+        start = buffer.find(b'!')
+        if start == -1:
+            buffer.clear()
+            return None, None
 
-            print("Probing ESP32...")
+        # drop junk before frame
+        if start > 0:
+            del buffer[:start]
 
-            for _ in range(10):  # small burst of attempts
-                ser.write(b"ok#")
+        # 2. find second !
+        second = buffer.find(b'!', 1)
+        if second == -1:
+            return None, None  # need more data
 
-                buf = b""
+        # 3. parse length safely
+        length_str = buffer[1:second].decode(errors="ignore")
 
-                while len(buf) < 2:
-                    buf += ser.read(64)
+        if not length_str.isdigit():
+            # bad frame → slide forward by 1 byte only
+            del buffer[0:1]
+            continue
 
-                if b"ok" in buf:
-                    print("ESP32 ready")
-                    return ser
+        length = int(length_str)
 
-                time.sleep(0.2)
+        # 4. check full payload availability
+        total_size = second + 1 + length
+        if len(buffer) < total_size:
+            return None, None  # wait for more bytes
 
-            print("No response, reconnecting...")
+        # 5. extract image
+        img = buffer[second + 1:total_size]
 
-        except serial.SerialException:
-            print("Serial error, retrying...")
+        # 6. consume frame
+        del buffer[:total_size]
 
-        try:
-            ser.close()
-        except:
-            pass
-
-        time.sleep(2)  # give ESP time to settle/reset
-
-def wait_for_header(ser, header=b"IMG:"):
-    buffer = b""
-    while True:
-        byte = ser.read(1)
-        if not byte:
-            raise RuntimeError("Timeout waiting for header")
-
-        buffer += byte
-
-        if buffer.endswith(header):
-            return
-
-def read_exact(ser, size):
-    """Read exactly 'size' bytes from serial."""
-    data = b""
-    while len(data) < size:
-        chunk = ser.read(size - len(data))
-        if not chunk:
-            raise RuntimeError("Timeout or connection lost")
-        data += chunk
-    return data
+        return length, img
 
 
-def main():
-    with serial.Serial(PORT, BAUD, timeout=10) as ser:
-        ser = wait_for_esp()
+# -----------------------------
+# WAIT FOR READY
+# -----------------------------
+print("Probing ESP32-CAM...")
 
-        ser.reset_input_buffer()
+while True:
+    ser.write(b"#ok#")
+    read_uart()
 
-        ser.write(COMMAND)
+    if b"@ok@" in buffer:
+        print("ESP32-CAM READY")
+        buffer.clear()
+        break
 
-        print("Waiting for header...")
-        wait_for_header(ser)
-
-        print("Header found")
-
-        raw_len = read_exact(ser, 4)
-        data_len = struct.unpack("<I", raw_len)[0]
-
-        print(f"Incoming data length: {data_len}")
-
-        payload = read_exact(ser, data_len)
-
-        with open(OUTPUT_FILE, "wb") as f:
-            f.write(payload)
-
-        print(f"Saved to {OUTPUT_FILE}")
+    time.sleep(0.2)
 
 
-if __name__ == "__main__":
-    main()
+# -----------------------------
+# REQUEST IMAGE
+# -----------------------------
+print("Requesting image...")
+ser.write(b"#i:c#")
+
+
+# -----------------------------
+# RECEIVE IMAGE STREAM
+# -----------------------------
+while True:
+    read_uart()
+
+    length, img = extract_image()
+
+    if img is not None:
+        print(f"Found image length: {length} bytes")
+
+        with open("/tmp/image.jpg", "wb") as f:
+            f.write(img)
+
+        print("Saved image.jpg")
+        break
+
+    time.sleep(0.01)
