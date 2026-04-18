@@ -3,6 +3,9 @@
 
 #include <esp_log.h>
 
+#include <vector>
+#include <algorithm>
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/uart.h"
@@ -39,6 +42,8 @@ esp_err_t UartAPI::init() {
       LOG_ERR(TAG, err, "cannot install UART driver");
     }
 
+    uart_param_config(UART_NUM_0, &uart_config);
+
     return status;
 }
 
@@ -59,54 +64,205 @@ void UartAPI::event_task_wrapper(void* arg) {
 }
 
 void UartAPI::run() {
-    static char rx_buffer[128];
-    static int rx_index = 0;
-    uint8_t c;
+    uint8_t rx_buf[128];
 
-    while (1) {
-      while (uart_read_bytes(UART_NUM_0, &c, 1, portMAX_DELAY)) {
-        if (c == '#')
+    while (true)
+    {
+        int len = uart_read_bytes(UART_NUM_0,
+                                  rx_buf,
+                                  sizeof(rx_buf),
+                                  pdMS_TO_TICKS(20));
+
+        if (len > 0)
         {
-          // terminate string so we can use strcmp
-          rx_buffer[rx_index] = '\0';
-          rx_index = 0;
-
-          if (strcmp(rx_buffer, "ok") == 0) {
-            uart_write_bytes(UART_NUM_0, "ok", 2);
-          }
-          else if (strcmp(rx_buffer, "i:c") == 0) {
-            Command cmd;
-            cmd.type = CommandType::TakePicture;
-            xQueueSend(_bus->commandQueue, &cmd, portMAX_DELAY);
-          }
-        } // else if (strcmp(rx_buffer, "pic:capture") == 0)
-        else {
-          if (rx_index < sizeof(rx_buffer) - 1) {
-              rx_buffer[rx_index++] = c;
-          }
-          else {
-          // overflow safety reset
-          rx_index = 0;
+            process_uart_bytes(rx_buf, len);
         }
-      } // if (c == '#')
-    } // while (uart_read_bytes(uart_num, &c, 1, portMAX_DELAY))
-  } // while (1)
+    }
 }  // void UartAPI::run() {
+
+
+
+
+void UartAPI::on_command(const std::string& cmd) {
+  ESP_LOGI(TAG, "on_command %s", cmd.c_str());
+  if (cmd == "ok") {
+    uart_write_bytes(UART_NUM_0, "@ok@", 4);
+  }
+  else if (cmd == "i:c") {
+    Command cmd;
+    cmd.type = CommandType::TakePicture;
+    xQueueSend(_bus->commandQueue, &cmd, portMAX_DELAY);
+  }
+}
+
+void UartAPI::on_response(const std::string& resp) {
+  ESP_LOGI(TAG, "on_response %s", resp.c_str());
+}
+
+void UartAPI::on_data(const uint8_t* data, size_t len) {
+  ESP_LOGI(TAG, "on_data %d, %s", len, data);
+}
+
+
+
+
+
+
+static std::string buffer;
+static std::string cmd;
+static std::vector<uint8_t> data;
+
+/*
+ * command frame:
+ * #ok#
+ * #i:c#
+ * response frame:
+ * @ok@
+ * data frame:
+ * !94012!<binary bytes>
+ */
+void UartAPI::process_uart_bytes(const uint8_t* input, size_t len)
+{
+    // 1. append incoming bytes
+    buffer.append(reinterpret_cast<const char*>(input), len);
+
+    // safety: prevent runaway buffer if desync happens
+    if (buffer.size() > 4096)
+    {
+        buffer.clear();
+        return;
+    }
+
+    // 2. parse as many complete frames as possible
+    while (true)
+    {
+        // -----------------------------
+        // COMMAND FRAME: #...#
+        // -----------------------------
+        size_t cmd_start = buffer.find('#');
+
+        // RESPONSE FRAME: @...@
+        size_t resp_start = buffer.find('@');
+
+        // DATA FRAME: !LEN!...
+        size_t data_start = buffer.find('!');
+
+        // choose earliest valid frame start
+        size_t first = std::min({cmd_start, resp_start, data_start});
+
+        if (first == std::string::npos)
+            break;
+
+        // erase garbage before frame start
+        if (first > 0)
+            buffer.erase(0, first);
+
+        // refresh positions after trimming
+        if (buffer.empty())
+            break;
+
+        char type = buffer[0];
+
+        // -----------------------------
+        // COMMAND FRAME
+        // -----------------------------
+        if (type == '#')
+        {
+            size_t end = buffer.find('#', 1);
+            if (end == std::string::npos)
+                break; // incomplete frame
+
+            std::string cmd = buffer.substr(1, end - 1);
+            buffer.erase(0, end + 1);
+
+            on_command(cmd);
+            continue;
+        }
+
+        // -----------------------------
+        // RESPONSE FRAME
+        // -----------------------------
+        if (type == '@')
+        {
+            size_t end = buffer.find('@', 1);
+            if (end == std::string::npos)
+                break;
+
+            std::string resp = buffer.substr(1, end - 1);
+            buffer.erase(0, end + 1);
+
+            on_response(resp);
+            continue;
+        }
+
+        // -----------------------------
+        // DATA FRAME: !LEN!<bytes>
+        // -----------------------------
+        if (type == '!')
+        {
+            size_t len_sep = buffer.find('!', 1);
+            if (len_sep == std::string::npos)
+                break;
+
+            std::string len_str = buffer.substr(1, len_sep - 1);
+            size_t data_len = std::strtoul(len_str.c_str(), nullptr, 10);
+
+            size_t needed = len_sep + 1 + data_len;
+
+            if (buffer.size() < needed)
+                break; // wait for full payload
+
+            const uint8_t* data_ptr =
+                reinterpret_cast<const uint8_t*>(buffer.data() + len_sep + 1);
+
+            on_data(data_ptr, data_len);
+
+            buffer.erase(0, needed);
+            continue;
+        }
+
+        // unknown byte → drop it (resync safety)
+        buffer.erase(0, 1);
+    }
+}
+
+
+
 
 void UartAPI::event_listener() {
   Event event;
   while (true) {
     if (xQueueReceive(_bus->eventQueue, &event, portMAX_DELAY)) {
       if (event.type == EventType::ImageCaptured) {
-        // Respond to the originating API call...
-        const char *header = "IMG:";
-        uart_write_bytes(UART_NUM_0, header, 4);
+
+        char header[32];
+
+        // convert length to ASCII
+        int len = snprintf(header, sizeof(header), "!%u!", event.image.length);
+
+        // send header
+        uart_write_bytes(UART_NUM_0, header, len);
+
+        // send image bytes
+        uart_write_bytes(UART_NUM_0,
+          (const char *)event.image.buffer,
+          event.image.length);        
+      
+
+
+        /*
+        // Respond to the originating API call, start with "!LEN!"
+        const char *header = "!";
+        uart_write_bytes(UART_NUM_0, header, 1);
         uart_write_bytes(UART_NUM_0,
           (const char *)&event.image.length,
           sizeof(event.image.length));
+        uart_write_bytes(UART_NUM_0, header, 1);
+        // ...then the bytes
         uart_write_bytes(UART_NUM_0,
           (const char *)event.image.buffer,
           event.image.length);
+          */
 
         // ...save the image to sd card. The receiver will free the buffer
         Command cmd;
