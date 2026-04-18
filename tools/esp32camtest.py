@@ -10,7 +10,7 @@ buffer = bytearray()
 
 
 # -----------------------------
-# LOW LEVEL READ
+# UART READ
 # -----------------------------
 def read_uart():
     data = ser.read(512)
@@ -19,97 +19,83 @@ def read_uart():
 
 
 # -----------------------------
-# FIND IMAGE FRAME
+# STATE MACHINE
 # -----------------------------
-def extract_image():
-    """
-    Robust resync parser:
-    - ignores garbage
-    - finds !LEN!<data>
-    - recovers from desync safely
-    """
+STATE_WAIT_HEADER = 0
+STATE_READ_DATA = 1
 
-    global buffer
+state = STATE_WAIT_HEADER
+expected_len = 0
+
+
+def process_stream():
+    global state, expected_len, buffer
 
     while True:
-        # 1. find start of frame
-        start = buffer.find(b'!')
-        if start == -1:
-            buffer.clear()
-            return None, None
+        read_uart()
 
-        # drop junk before frame
-        if start > 0:
-            del buffer[:start]
+        # -------------------------
+        # STATE 1: WAIT FOR HEADER
+        # -------------------------
+        if state == STATE_WAIT_HEADER:
 
-        # 2. find second !
-        second = buffer.find(b'!', 1)
-        if second == -1:
-            return None, None  # need more data
+            start = buffer.find(b'!')
+            second = buffer.find(b'!', start + 1 if start != -1 else 0)
 
-        # 3. parse length safely
-        length_str = buffer[1:second].decode(errors="ignore")
+            if start == -1 or second == -1:
+                continue
 
-        if not length_str.isdigit():
-            # bad frame → slide forward by 1 byte only
-            del buffer[0:1]
-            continue
+            length_str = buffer[start + 1:second].decode(errors="ignore")
 
-        length = int(length_str)
+            if not length_str.isdigit():
+                # discard bad byte and retry
+                del buffer[start + 1:start + 2]
+                continue
 
-        # 4. check full payload availability
-        total_size = second + 1 + length
-        if len(buffer) < total_size:
-            return None, None  # wait for more bytes
+            expected_len = int(length_str)
 
-        # 5. extract image
-        img = buffer[second + 1:total_size]
+            print(f"Found image length: {expected_len} bytes")
 
-        # 6. consume frame
-        del buffer[:total_size]
+            # consume header only
+            del buffer[:second + 1]
 
-        return length, img
+            state = STATE_READ_DATA
+
+        # -------------------------
+        # STATE 2: READ IMAGE DATA
+        # -------------------------
+        elif state == STATE_READ_DATA:
+
+            if len(buffer) < expected_len:
+                continue
+
+            img = buffer[:expected_len]
+            del buffer[:expected_len]
+
+            print("Image complete")
+
+            with open("/tmp/image.jpg", "wb") as f:
+                f.write(img)
+
+            return  # done
 
 
 # -----------------------------
-# WAIT FOR READY
+# USAGE
 # -----------------------------
 print("Probing ESP32-CAM...")
 
-while True:
-    ser.write(b"#ok#")
-    read_uart()
+ser.write(b"#ok#")
 
+while True:
+    read_uart()
     if b"@ok@" in buffer:
         print("ESP32-CAM READY")
         buffer.clear()
         break
-
     time.sleep(0.2)
 
-
-# -----------------------------
-# REQUEST IMAGE
-# -----------------------------
 print("Requesting image...")
 ser.write(b"#i:c#")
 
-
-# -----------------------------
-# RECEIVE IMAGE STREAM
-# -----------------------------
-while True:
-    read_uart()
-
-    length, img = extract_image()
-
-    if img is not None:
-        print(f"Found image length: {length} bytes")
-
-        with open("/tmp/image.jpg", "wb") as f:
-            f.write(img)
-
-        print("Saved image.jpg")
-        break
-
-    time.sleep(0.01)
+process_stream()
