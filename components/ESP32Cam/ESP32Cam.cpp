@@ -70,7 +70,7 @@ esp_err_t ESP32Cam::init_camera() {
 ImageData ESP32Cam::capture_image() {
   camera_fb_t* fb = esp_camera_fb_get();
   if (fb != NULL) {
-    ESP_LOGI(TAG, "Image captured! Its size was: %zu bytes", fb->len);
+    //ESP_LOGI(TAG, "Image captured! Its size was: %zu bytes", fb->len);
 
     ImageData img;
     img.length = fb->len;
