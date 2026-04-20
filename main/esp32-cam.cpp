@@ -29,7 +29,7 @@ extern "C" void app_main(void)
 
     // Set up the UART API which will use messages to coordinate activity
     UartAPI uartAPI;
-    uartAPI.init();
+    uartAPI.init(2, 12, 13);
     uartAPI.start(&bus);
     
     // Start the message dispatcher
@@ -42,7 +42,7 @@ extern "C" void app_main(void)
     camera.start(&bus);
 
     SDCard sdcard;
-    esp_err_t ret = sdcard.init_mmc("/sdcard");
+    sdcard.init_mmc("/sdcard");
     sdcard.start(&bus);
 
     while (1) {
