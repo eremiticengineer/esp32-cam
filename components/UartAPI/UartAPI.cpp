@@ -87,7 +87,7 @@ void UartAPI::event_listener() {
         // send image bytes
         uart_write_bytes(_uart_num,
           (const char *)event.image.buffer,
-          event.image.length);        
+          event.image.length);
       
 
 
