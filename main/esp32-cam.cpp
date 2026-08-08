@@ -29,7 +29,19 @@ extern "C" void app_main(void)
 
     // Set up the UART API which will use messages to coordinate activity
     UartAPI uartAPI;
-    uartAPI.init(2, 12, 13);
+    // to run esp32camtest.py, put the esp32-cam on the programmer board
+    // and use uart1 and default uart1 pins which the FTDI uses.
+    uartAPI.init({
+        .uart_num = 1,
+        .rx = 3,
+        .tx = 1
+    });
+    // to use in production with the esp32-firebeetle use uart2 with the specified pins
+    // uartAPI.init({
+    //     .uart_num = 2,
+    //     .rx = 12,
+    //     .tx = 13
+    // });
     uartAPI.start(&bus);
     
     // Start the message dispatcher
