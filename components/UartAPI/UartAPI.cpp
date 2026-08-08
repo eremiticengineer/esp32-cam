@@ -126,7 +126,10 @@ void UartAPI::event_listener() {
         snprintf(payload, 32, "this is text");
         cmd.sdcard_payload.text_buffer = payload;
         cmd.sdcard_payload.length = strlen(payload);
+        cmd.notifyTask = xTaskGetCurrentTaskHandle();
         xQueueSend(_bus->commandQueue, &cmd, portMAX_DELAY);
+        // Wait until command has actually been processed
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
       } // if (event.type == EventType::ImageCaptured)
     } // if (xQueueReceive(_bus->eventQueue, &event, portMAX_DELAY)) {
   } // while (true) {
@@ -179,7 +182,11 @@ void UartAPI::on_command(const std::string& cmd) {
         snprintf(payload, 32, "0123456789");
         cmd.sdcard_payload.text_buffer = payload;
         cmd.sdcard_payload.length = strlen(payload);
+        cmd.notifyTask = xTaskGetCurrentTaskHandle();
         xQueueSend(_bus->commandQueue, &cmd, portMAX_DELAY);
+        // Wait until command has actually been processed
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        uart_write_bytes(_uart_num, "@testok@", 8);
     }
     else {
         uart_write_bytes(_uart_num, "@?@", 3);
