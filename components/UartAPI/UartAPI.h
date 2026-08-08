@@ -13,8 +13,14 @@
 class UartAPI {
 
 public:
+  struct UARTConfig {
+    int uart_num;
+    int rx;
+    int tx;
+  };
+
   UartAPI();
-  esp_err_t init(int uart_num, int txPin, int rxPin);
+  esp_err_t init(const UARTConfig& config);
   void start(SystemBus* bus);
   void run();
   void event_listener();
