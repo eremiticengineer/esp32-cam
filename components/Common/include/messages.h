@@ -30,6 +30,8 @@ enum class CommandType {
 struct Command {
     CommandType type;
 
+    TaskHandle_t notifyTask;
+
     union {
         SaveToSDPayload sdcard_payload;
         ImageData image;
