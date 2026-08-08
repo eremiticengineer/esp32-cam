@@ -6,6 +6,11 @@ BAUD = 115200
 
 ser = serial.Serial(PORT, BAUD, timeout=0.1)
 
+# Need to wait at least 3s before running the script with a delay until UART ready
+print("Waiting 5s for UART...")
+time.sleep(5.0)
+ser.reset_input_buffer()
+
 buffer = bytearray()
 
 
