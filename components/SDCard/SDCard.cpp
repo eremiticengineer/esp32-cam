@@ -294,6 +294,9 @@ void SDCard::run()
                     "/" + cmd.sdcard_payload.filename;
                 write_file(filenameWithPath.c_str(), cmd.sdcard_payload.text_buffer);
 
+                // Tell sender we're completely finished
+                xTaskNotifyGive(cmd.notifyTask);
+
                 // Free the text data that's on the heap
                 free(cmd.sdcard_payload.text_buffer);
             }
